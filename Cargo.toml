@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2024"
 description = "High-performance financial calculation library with a pluggable registry"
 repository = "https://github.com/piekstra/market-calculations"
+license = "MIT"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
