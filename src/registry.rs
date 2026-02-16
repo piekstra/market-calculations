@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::metadata::CalculationMetadata;
+use crate::output::CalculationError;
 use crate::traits::Calculation;
 
 /// Holds all registered calculations, keyed by their metadata id.
@@ -23,6 +24,8 @@ impl CalculationRegistry {
         registry.register(Arc::new(crate::calculations::sma::Sma));
         registry.register(Arc::new(crate::calculations::ema::Ema));
         registry.register(Arc::new(crate::calculations::rsi::Rsi));
+        registry.register(Arc::new(crate::calculations::daily_profile::DailyProfile));
+        registry.register(Arc::new(crate::calculations::range_trend::RangeTrend));
         registry
     }
 
@@ -56,6 +59,48 @@ impl CalculationRegistry {
         let metas = self.list_metadata();
         serde_json::to_string_pretty(&metas)
     }
+
+    /// Returns the dependency graph for a calculation as a topologically
+    /// sorted list of calculation IDs (dependencies first, target last).
+    pub fn resolve_dependencies(&self, id: &str) -> Result<Vec<String>, CalculationError> {
+        let mut order = Vec::new();
+        let mut visited = HashSet::new();
+        let mut visiting = HashSet::new();
+        self.topo_visit(id, &mut order, &mut visited, &mut visiting)?;
+        Ok(order)
+    }
+
+    fn topo_visit(
+        &self,
+        id: &str,
+        order: &mut Vec<String>,
+        visited: &mut HashSet<String>,
+        visiting: &mut HashSet<String>,
+    ) -> Result<(), CalculationError> {
+        if visited.contains(id) {
+            return Ok(());
+        }
+        if visiting.contains(id) {
+            return Err(CalculationError::CalculationFailed(format!(
+                "Circular dependency detected involving '{}'",
+                id
+            )));
+        }
+        visiting.insert(id.to_string());
+
+        let calc = self.get(id).ok_or_else(|| {
+            CalculationError::CalculationFailed(format!("Unknown calculation: '{}'", id))
+        })?;
+
+        for dep in &calc.metadata().dependencies {
+            self.topo_visit(&dep.calculation_id, order, visited, visiting)?;
+        }
+
+        visiting.remove(id);
+        visited.insert(id.to_string());
+        order.push(id.to_string());
+        Ok(())
+    }
 }
 
 impl Default for CalculationRegistry {
@@ -79,7 +124,10 @@ mod tests {
     fn with_defaults_registers_all_builtins() {
         let registry = CalculationRegistry::with_defaults();
         let ids = registry.list_ids();
-        assert_eq!(ids, vec!["ema", "rsi", "sma"]);
+        assert_eq!(
+            ids,
+            vec!["daily_profile", "ema", "range_trend", "rsi", "sma"]
+        );
     }
 
     #[test]
@@ -94,6 +142,8 @@ mod tests {
         assert!(registry.get("sma").is_some());
         assert!(registry.get("ema").is_some());
         assert!(registry.get("rsi").is_some());
+        assert!(registry.get("daily_profile").is_some());
+        assert!(registry.get("range_trend").is_some());
     }
 
     #[test]
@@ -109,10 +159,7 @@ mod tests {
         let registry = CalculationRegistry::with_defaults();
         let json = registry.export_manifest().unwrap();
         let parsed: Vec<CalculationMetadata> = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.len(), 3);
-        assert_eq!(parsed[0].id, "ema");
-        assert_eq!(parsed[1].id, "rsi");
-        assert_eq!(parsed[2].id, "sma");
+        assert_eq!(parsed.len(), 5);
     }
 
     #[test]
@@ -122,5 +169,25 @@ mod tests {
         let mut sorted = ids.clone();
         sorted.sort();
         assert_eq!(ids, sorted);
+    }
+
+    #[test]
+    fn resolve_dependencies_standalone() {
+        let registry = CalculationRegistry::with_defaults();
+        let order = registry.resolve_dependencies("sma").unwrap();
+        assert_eq!(order, vec!["sma"]);
+    }
+
+    #[test]
+    fn resolve_dependencies_with_deps() {
+        let registry = CalculationRegistry::with_defaults();
+        let order = registry.resolve_dependencies("range_trend").unwrap();
+        assert_eq!(order, vec!["daily_profile", "range_trend"]);
+    }
+
+    #[test]
+    fn resolve_dependencies_unknown_calc() {
+        let registry = CalculationRegistry::with_defaults();
+        assert!(registry.resolve_dependencies("nonexistent").is_err());
     }
 }

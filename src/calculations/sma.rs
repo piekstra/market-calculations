@@ -39,6 +39,12 @@ impl Calculation for Sma {
             }],
             price_fields: vec![PriceField::Close],
             min_candles_description: "Equal to the period parameter".into(),
+            output_series: vec![OutputSeriesDef {
+                name: "value".into(),
+                description: "SMA values".into(),
+                series_type: SeriesType::Numeric,
+            }],
+            dependencies: vec![],
         }
     }
 
@@ -60,7 +66,7 @@ impl Calculation for Sma {
             values[i] = sum / period as f64;
         }
 
-        Ok(CalculationOutput { values })
+        Ok(CalculationOutput::single(values))
     }
 }
 
@@ -87,46 +93,45 @@ mod tests {
 
     #[test]
     fn sma_5_known_values() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Sma.calculate(&input).unwrap();
-        assert!(result.values[0..4].iter().all(|v| v.is_nan()));
-        assert!((result.values[4] - 12.0).abs() < 1e-10);
-        assert!((result.values[5] - 13.0).abs() < 1e-10);
-        assert!((result.values[6] - 14.0).abs() < 1e-10);
+        let values = result.values().unwrap();
+        assert!(values[0..4].iter().all(|v| v.is_nan()));
+        assert!((values[4] - 12.0).abs() < 1e-10);
+        assert!((values[5] - 13.0).abs() < 1e-10);
+        assert!((values[6] - 14.0).abs() < 1e-10);
     }
 
     #[test]
     fn sma_default_period() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![100.0; 25]),
-            params: HashMap::new(),
-        };
+        let input = CalculationInput::new(make_candles(&vec![100.0; 25]), HashMap::new());
         let result = Sma.calculate(&input).unwrap();
-        // Default period is 20, so first 19 are NaN
-        assert!(result.values[18].is_nan());
-        assert!((result.values[19] - 100.0).abs() < 1e-10);
+        let values = result.values().unwrap();
+        assert!(values[18].is_nan());
+        assert!((values[19] - 100.0).abs() < 1e-10);
     }
 
     #[test]
     fn sma_exact_min_candles() {
-        let input = CalculationInput {
-            candles: make_candles(&[1.0, 2.0, 3.0, 4.0, 5.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[1.0, 2.0, 3.0, 4.0, 5.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Sma.calculate(&input).unwrap();
-        assert!(result.values[0..4].iter().all(|v| v.is_nan()));
-        assert!((result.values[4] - 3.0).abs() < 1e-10);
+        let values = result.values().unwrap();
+        assert!(values[0..4].iter().all(|v| v.is_nan()));
+        assert!((values[4] - 3.0).abs() < 1e-10);
     }
 
     #[test]
     fn sma_insufficient_data() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 11.0, 12.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 11.0, 12.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let err = Sma.calculate(&input).unwrap_err();
         assert_eq!(
             err,
@@ -139,10 +144,10 @@ mod tests {
 
     #[test]
     fn sma_invalid_period_negative() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![10.0; 50]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(-5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![10.0; 50]),
+            HashMap::from([("period".into(), ParamValue::Integer(-5))]),
+        );
         assert!(matches!(
             Sma.calculate(&input),
             Err(CalculationError::InvalidParameter { .. })
@@ -151,10 +156,10 @@ mod tests {
 
     #[test]
     fn sma_invalid_period_zero() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![10.0; 50]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(0))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![10.0; 50]),
+            HashMap::from([("period".into(), ParamValue::Integer(0))]),
+        );
         assert!(matches!(
             Sma.calculate(&input),
             Err(CalculationError::InvalidParameter { .. })
@@ -163,10 +168,10 @@ mod tests {
 
     #[test]
     fn sma_invalid_period_wrong_type() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![10.0; 50]),
-            params: HashMap::from([("period".into(), ParamValue::Float(5.5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![10.0; 50]),
+            HashMap::from([("period".into(), ParamValue::Float(5.5))]),
+        );
         assert!(matches!(
             Sma.calculate(&input),
             Err(CalculationError::InvalidParameter { .. })
@@ -175,12 +180,13 @@ mod tests {
 
     #[test]
     fn sma_constant_prices() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![42.0; 10]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![42.0; 10]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Sma.calculate(&input).unwrap();
-        for v in &result.values[4..] {
+        let values = result.values().unwrap();
+        for v in &values[4..] {
             assert!((v - 42.0).abs() < 1e-10);
         }
     }
@@ -194,5 +200,7 @@ mod tests {
         assert_eq!(meta.parameters.len(), 1);
         assert_eq!(meta.parameters[0].name, "period");
         assert_eq!(meta.price_fields, vec![PriceField::Close]);
+        assert_eq!(meta.output_series.len(), 1);
+        assert!(meta.dependencies.is_empty());
     }
 }

@@ -41,6 +41,12 @@ impl Calculation for Rsi {
             }],
             price_fields: vec![PriceField::Close],
             min_candles_description: "period + 1 (need `period` price changes)".into(),
+            output_series: vec![OutputSeriesDef {
+                name: "value".into(),
+                description: "RSI values (0-100)".into(),
+                series_type: SeriesType::Numeric,
+            }],
+            dependencies: vec![],
         }
     }
 
@@ -91,7 +97,7 @@ impl Calculation for Rsi {
             }
         }
 
-        Ok(CalculationOutput { values })
+        Ok(CalculationOutput::single(values))
     }
 }
 
@@ -119,40 +125,40 @@ mod tests {
     #[test]
     fn rsi_warmup_is_nan() {
         let closes: Vec<f64> = (0..30).map(|i| 100.0 + (i as f64) * 0.5).collect();
-        let input = CalculationInput {
-            candles: make_candles(&closes),
-            params: HashMap::from([("period".into(), ParamValue::Integer(14))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&closes),
+            HashMap::from([("period".into(), ParamValue::Integer(14))]),
+        );
         let result = Rsi.calculate(&input).unwrap();
-        // First 14 values (indices 0..14) should be NaN, index 14 is first RSI
-        assert!(result.values[0..14].iter().all(|v| v.is_nan()));
-        assert!(!result.values[14].is_nan());
+        let values = result.values().unwrap();
+        assert!(values[0..14].iter().all(|v| v.is_nan()));
+        assert!(!values[14].is_nan());
     }
 
     #[test]
     fn rsi_monotonically_increasing_near_100() {
-        // All gains, no losses -> RSI should be 100
         let closes: Vec<f64> = (0..20).map(|i| 100.0 + i as f64).collect();
-        let input = CalculationInput {
-            candles: make_candles(&closes),
-            params: HashMap::from([("period".into(), ParamValue::Integer(14))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&closes),
+            HashMap::from([("period".into(), ParamValue::Integer(14))]),
+        );
         let result = Rsi.calculate(&input).unwrap();
-        for v in &result.values[14..] {
+        let values = result.values().unwrap();
+        for v in &values[14..] {
             assert!((v - 100.0).abs() < 1e-10);
         }
     }
 
     #[test]
     fn rsi_monotonically_decreasing_near_0() {
-        // All losses, no gains -> RSI should be 0
         let closes: Vec<f64> = (0..20).map(|i| 200.0 - i as f64).collect();
-        let input = CalculationInput {
-            candles: make_candles(&closes),
-            params: HashMap::from([("period".into(), ParamValue::Integer(14))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&closes),
+            HashMap::from([("period".into(), ParamValue::Integer(14))]),
+        );
         let result = Rsi.calculate(&input).unwrap();
-        for v in &result.values[14..] {
+        let values = result.values().unwrap();
+        for v in &values[14..] {
             assert!(v.abs() < 1e-10);
         }
     }
@@ -163,35 +169,35 @@ mod tests {
             44.0, 44.34, 44.09, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84, 46.08, 45.89, 46.03,
             45.61, 46.28, 46.28, 46.00, 46.03, 46.41, 46.22, 45.64,
         ];
-        let input = CalculationInput {
-            candles: make_candles(&closes),
-            params: HashMap::from([("period".into(), ParamValue::Integer(14))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&closes),
+            HashMap::from([("period".into(), ParamValue::Integer(14))]),
+        );
         let result = Rsi.calculate(&input).unwrap();
-        for v in &result.values[14..] {
+        let values = result.values().unwrap();
+        for v in &values[14..] {
             assert!(*v >= 0.0 && *v <= 100.0, "RSI {} out of range", v);
         }
     }
 
     #[test]
     fn rsi_exact_min_candles() {
-        // RSI(14) needs 15 candles
-        let input = CalculationInput {
-            candles: make_candles(&vec![100.0; 15]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(14))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![100.0; 15]),
+            HashMap::from([("period".into(), ParamValue::Integer(14))]),
+        );
         let result = Rsi.calculate(&input).unwrap();
-        assert_eq!(result.values.len(), 15);
-        // With constant prices, all changes are 0 -> avg_gain=0, avg_loss=0 -> RSI=100 (by convention)
-        assert!((result.values[14] - 100.0).abs() < 1e-10);
+        let values = result.values().unwrap();
+        assert_eq!(values.len(), 15);
+        assert!((values[14] - 100.0).abs() < 1e-10);
     }
 
     #[test]
     fn rsi_insufficient_data() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![100.0; 14]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(14))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![100.0; 14]),
+            HashMap::from([("period".into(), ParamValue::Integer(14))]),
+        );
         assert_eq!(
             Rsi.calculate(&input).unwrap_err(),
             CalculationError::InsufficientData {
@@ -203,22 +209,23 @@ mod tests {
 
     #[test]
     fn rsi_small_period() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 12.0, 11.0, 13.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(3))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 12.0, 11.0, 13.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(3))]),
+        );
         let result = Rsi.calculate(&input).unwrap();
-        assert!(result.values[0..3].iter().all(|v| v.is_nan()));
-        assert!(!result.values[3].is_nan());
-        assert!(result.values[3] >= 0.0 && result.values[3] <= 100.0);
+        let values = result.values().unwrap();
+        assert!(values[0..3].iter().all(|v| v.is_nan()));
+        assert!(!values[3].is_nan());
+        assert!(values[3] >= 0.0 && values[3] <= 100.0);
     }
 
     #[test]
     fn rsi_invalid_period() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![10.0; 50]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(-1))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![10.0; 50]),
+            HashMap::from([("period".into(), ParamValue::Integer(-1))]),
+        );
         assert!(matches!(
             Rsi.calculate(&input),
             Err(CalculationError::InvalidParameter { .. })
@@ -234,5 +241,7 @@ mod tests {
         assert_eq!(meta.parameters.len(), 1);
         assert_eq!(meta.parameters[0].name, "period");
         assert_eq!(meta.price_fields, vec![PriceField::Close]);
+        assert_eq!(meta.output_series.len(), 1);
+        assert!(meta.dependencies.is_empty());
     }
 }

@@ -1,14 +1,41 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt;
 
-/// The result of a calculation: one f64 value per input candle
-/// where the calculation is defined. Leading entries are `f64::NAN`
-/// for the warm-up period.
+/// Well-known key for single-series calculations.
+pub const PRIMARY_SERIES: &str = "value";
+
+/// The result of a calculation: one or more named series of f64 values.
+/// Single-output calculations use the key "value" via `CalculationOutput::single()`.
+/// Multi-output calculations provide multiple named series via `CalculationOutput::multi()`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalculationOutput {
-    /// One value per candle. Values during the warm-up period
-    /// where the calculation cannot yet produce a result are `f64::NAN`.
-    pub values: Vec<f64>,
+    /// Named output series. Single-output calcs use the key "value".
+    pub series: HashMap<String, Vec<f64>>,
+}
+
+impl CalculationOutput {
+    /// Convenience constructor for single-series calculations.
+    pub fn single(values: Vec<f64>) -> Self {
+        let mut series = HashMap::new();
+        series.insert(PRIMARY_SERIES.to_string(), values);
+        Self { series }
+    }
+
+    /// Convenience constructor for multi-series calculations.
+    pub fn multi(series: HashMap<String, Vec<f64>>) -> Self {
+        Self { series }
+    }
+
+    /// Get the primary series (shorthand for single-output calcs).
+    pub fn values(&self) -> Option<&Vec<f64>> {
+        self.series.get(PRIMARY_SERIES)
+    }
+
+    /// Get a named series.
+    pub fn get(&self, name: &str) -> Option<&Vec<f64>> {
+        self.series.get(name)
+    }
 }
 
 /// Errors that a calculation can produce.

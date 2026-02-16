@@ -41,6 +41,12 @@ impl Calculation for Ema {
             }],
             price_fields: vec![PriceField::Close],
             min_candles_description: "Equal to the period parameter".into(),
+            output_series: vec![OutputSeriesDef {
+                name: "value".into(),
+                description: "EMA values".into(),
+                series_type: SeriesType::Numeric,
+            }],
+            dependencies: vec![],
         }
     }
 
@@ -64,7 +70,7 @@ impl Calculation for Ema {
             values[i] = (closes[i] - values[i - 1]) * multiplier + values[i - 1];
         }
 
-        Ok(CalculationOutput { values })
+        Ok(CalculationOutput::single(values))
     }
 }
 
@@ -91,49 +97,47 @@ mod tests {
 
     #[test]
     fn ema_seed_equals_sma() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Ema.calculate(&input).unwrap();
-        // First EMA value should equal SMA: (10+11+12+13+14)/5 = 12.0
-        assert!((result.values[4] - 12.0).abs() < 1e-10);
+        assert!((result.values().unwrap()[4] - 12.0).abs() < 1e-10);
     }
 
     #[test]
     fn ema_subsequent_values() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Ema.calculate(&input).unwrap();
+        let values = result.values().unwrap();
         let multiplier = 2.0 / 6.0;
-        // values[4] = 12.0 (SMA seed)
-        // values[5] = (15.0 - 12.0) * multiplier + 12.0 = 13.0
         let expected_5 = (15.0 - 12.0) * multiplier + 12.0;
-        assert!((result.values[5] - expected_5).abs() < 1e-10);
-        // values[6] = (16.0 - expected_5) * multiplier + expected_5
+        assert!((values[5] - expected_5).abs() < 1e-10);
         let expected_6 = (16.0 - expected_5) * multiplier + expected_5;
-        assert!((result.values[6] - expected_6).abs() < 1e-10);
+        assert!((values[6] - expected_6).abs() < 1e-10);
     }
 
     #[test]
     fn ema_warmup_is_nan() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0, 15.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 11.0, 12.0, 13.0, 14.0, 15.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Ema.calculate(&input).unwrap();
-        assert!(result.values[0..4].iter().all(|v| v.is_nan()));
-        assert!(!result.values[4].is_nan());
+        let values = result.values().unwrap();
+        assert!(values[0..4].iter().all(|v| v.is_nan()));
+        assert!(!values[4].is_nan());
     }
 
     #[test]
     fn ema_insufficient_data() {
-        let input = CalculationInput {
-            candles: make_candles(&[10.0, 11.0]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&[10.0, 11.0]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         assert_eq!(
             Ema.calculate(&input).unwrap_err(),
             CalculationError::InsufficientData {
@@ -145,22 +149,23 @@ mod tests {
 
     #[test]
     fn ema_constant_prices() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![42.0; 10]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(5))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![42.0; 10]),
+            HashMap::from([("period".into(), ParamValue::Integer(5))]),
+        );
         let result = Ema.calculate(&input).unwrap();
-        for v in &result.values[4..] {
+        let values = result.values().unwrap();
+        for v in &values[4..] {
             assert!((v - 42.0).abs() < 1e-10);
         }
     }
 
     #[test]
     fn ema_invalid_period() {
-        let input = CalculationInput {
-            candles: make_candles(&vec![10.0; 50]),
-            params: HashMap::from([("period".into(), ParamValue::Integer(-3))]),
-        };
+        let input = CalculationInput::new(
+            make_candles(&vec![10.0; 50]),
+            HashMap::from([("period".into(), ParamValue::Integer(-3))]),
+        );
         assert!(matches!(
             Ema.calculate(&input),
             Err(CalculationError::InvalidParameter { .. })
@@ -175,5 +180,7 @@ mod tests {
         assert!(!meta.description.is_empty());
         assert_eq!(meta.parameters.len(), 1);
         assert_eq!(meta.price_fields, vec![PriceField::Close]);
+        assert_eq!(meta.output_series.len(), 1);
+        assert!(meta.dependencies.is_empty());
     }
 }
