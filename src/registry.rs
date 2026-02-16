@@ -21,11 +21,19 @@ impl CalculationRegistry {
     /// Create a registry pre-populated with all built-in calculations.
     pub fn with_defaults() -> Self {
         let mut registry = Self::new();
-        registry.register(Arc::new(crate::calculations::sma::Sma));
-        registry.register(Arc::new(crate::calculations::ema::Ema));
-        registry.register(Arc::new(crate::calculations::rsi::Rsi));
+        registry.register(Arc::new(crate::calculations::atr::Atr));
+        registry.register(Arc::new(
+            crate::calculations::bollinger_bands::BollingerBands,
+        ));
         registry.register(Arc::new(crate::calculations::daily_profile::DailyProfile));
+        registry.register(Arc::new(crate::calculations::ema::Ema));
+        registry.register(Arc::new(crate::calculations::macd::Macd));
+        registry.register(Arc::new(crate::calculations::obv::Obv));
         registry.register(Arc::new(crate::calculations::range_trend::RangeTrend));
+        registry.register(Arc::new(crate::calculations::rsi::Rsi));
+        registry.register(Arc::new(crate::calculations::sma::Sma));
+        registry.register(Arc::new(crate::calculations::stochastic::Stochastic));
+        registry.register(Arc::new(crate::calculations::vwap::Vwap));
         registry
     }
 
@@ -126,7 +134,19 @@ mod tests {
         let ids = registry.list_ids();
         assert_eq!(
             ids,
-            vec!["daily_profile", "ema", "range_trend", "rsi", "sma"]
+            vec![
+                "atr",
+                "bollinger_bands",
+                "daily_profile",
+                "ema",
+                "macd",
+                "obv",
+                "range_trend",
+                "rsi",
+                "sma",
+                "stochastic",
+                "vwap",
+            ]
         );
     }
 
@@ -144,6 +164,12 @@ mod tests {
         assert!(registry.get("rsi").is_some());
         assert!(registry.get("daily_profile").is_some());
         assert!(registry.get("range_trend").is_some());
+        assert!(registry.get("atr").is_some());
+        assert!(registry.get("bollinger_bands").is_some());
+        assert!(registry.get("macd").is_some());
+        assert!(registry.get("obv").is_some());
+        assert!(registry.get("stochastic").is_some());
+        assert!(registry.get("vwap").is_some());
     }
 
     #[test]
@@ -159,7 +185,7 @@ mod tests {
         let registry = CalculationRegistry::with_defaults();
         let json = registry.export_manifest().unwrap();
         let parsed: Vec<CalculationMetadata> = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.len(), 5);
+        assert_eq!(parsed.len(), 11);
     }
 
     #[test]

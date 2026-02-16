@@ -45,7 +45,13 @@ fn registry_with_defaults_has_all_builtins() {
     assert!(registry.get("rsi").is_some());
     assert!(registry.get("daily_profile").is_some());
     assert!(registry.get("range_trend").is_some());
-    assert_eq!(registry.list_ids().len(), 5);
+    assert_eq!(registry.list_ids().len(), 11);
+    assert!(registry.get("atr").is_some());
+    assert!(registry.get("bollinger_bands").is_some());
+    assert!(registry.get("macd").is_some());
+    assert!(registry.get("obv").is_some());
+    assert!(registry.get("stochastic").is_some());
+    assert!(registry.get("vwap").is_some());
 }
 
 #[test]
@@ -95,7 +101,7 @@ fn manifest_round_trips_through_json() {
     let registry = CalculationRegistry::with_defaults();
     let json = registry.export_manifest().unwrap();
     let parsed: Vec<CalculationMetadata> = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.len(), 5);
+    assert_eq!(parsed.len(), 11);
 
     for meta in &parsed {
         assert!(!meta.id.is_empty());
@@ -162,7 +168,7 @@ fn custom_calculation_can_be_registered() {
     let mut registry = CalculationRegistry::with_defaults();
     registry.register(Arc::new(CustomCalc));
 
-    assert_eq!(registry.list_ids().len(), 6);
+    assert_eq!(registry.list_ids().len(), 12);
     assert!(registry.get("custom_test").is_some());
 
     let input = CalculationInput::new(make_candles(&[10.0, 20.0]), HashMap::new());

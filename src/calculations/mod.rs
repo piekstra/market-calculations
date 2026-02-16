@@ -1,5 +1,11 @@
+pub mod atr;
+pub mod bollinger_bands;
 pub mod daily_profile;
 pub mod ema;
+pub mod macd;
+pub mod obv;
 pub mod range_trend;
 pub mod rsi;
 pub mod sma;
+pub mod stochastic;
+pub mod vwap;
