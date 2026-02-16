@@ -14,11 +14,17 @@ High-performance Rust library for financial technical analysis calculations with
 
 ## Built-in Calculations
 
-| ID | Title | Type | Default Period |
+| ID | Title | Type | Default Params |
 |----|-------|------|---------------|
-| `sma` | Simple Moving Average | Single-series | 20 |
-| `ema` | Exponential Moving Average | Single-series | 20 |
-| `rsi` | Relative Strength Index | Single-series | 14 |
+| `sma` | Simple Moving Average | Single-series | period=20 |
+| `ema` | Exponential Moving Average | Single-series | period=20 |
+| `rsi` | Relative Strength Index | Single-series | period=14 |
+| `atr` | Average True Range | Single-series | period=14 |
+| `obv` | On-Balance Volume | Single-series | N/A |
+| `bollinger_bands` | Bollinger Bands | Derivative (SMA), multi-series (5) | period=20 |
+| `macd` | MACD | Multi-series (3) | fast=12, slow=26, signal=9 |
+| `stochastic` | Stochastic Oscillator | Multi-series (2) | k=14, d=3, smooth_k=3 |
+| `vwap` | Volume-Weighted Average Price | Multi-series (3) | N/A |
 | `daily_profile` | Daily Price Profile | Multi-series (5) | N/A |
 | `range_trend` | Daily Range Trend | Derivative, multi-series (2) | window=5 |
 
