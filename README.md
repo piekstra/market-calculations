@@ -118,3 +118,9 @@ fn calculate(&self, input: &CalculationInput) -> Result<CalculationOutput, Calcu
 ```
 
 Use `Pipeline::run()` to automatically resolve and execute the dependency graph.
+
+## License
+
+Copyright (C) 2026 piekstra. Licensed under the GNU Affero General Public
+License, version 3 only (AGPL-3.0-only); see [LICENSE](LICENSE). Releases up to
+and including v0.2.0 were published under MIT.
