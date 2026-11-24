@@ -69,4 +69,4 @@ All four commands must pass before submitting a PR. CI enforces this.
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under AGPL-3.0-only.
